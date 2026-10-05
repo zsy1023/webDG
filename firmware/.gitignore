@@ -1,0 +1,4 @@
+# PlatformIO 构建产物（别入库）
+.pio/
+.pioenvs/
+.piolibdeps/

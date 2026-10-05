@@ -1,0 +1,10 @@
+{
+  "version": "3142819-dirty",
+  "built_at": "2026-10-04 22:46:39",
+  "source_commit": "3142819",
+  "source_dirty": true,
+  "with_models": true,
+  "files": 180,
+  "bytes": 101925515,
+  "built_by": "tools/build_release.py"
+}

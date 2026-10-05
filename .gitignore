@@ -1,0 +1,41 @@
+# 运行时产物 / 本地环境 —— 都别进版本控制
+.venv/
+data/
+logs/
+__pycache__/
+*.py[cod]
+*.log
+agent/config.toml
+run-nodes.cmd
+
+# 证书 / 私钥（TLS 私钥绝不能入库；data/ 已整体排除，这里再兜一层）
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# 本机配置 / 密钥
+config.local.*
+.env
+secrets/
+
+# PlatformIO 构建产物
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# 打包产物
+webDG.zip
+*.7z
+*.rar
+
+# IDE / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Reasonix 会话数据
+.reasonix/

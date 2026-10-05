@@ -1,0 +1,92 @@
+# ════════════════════════════════════════════════════════════════════
+#  CoyoteLink 节点启动清单（supervisor 读取）
+#  契约：docs/tasks/TF-节点框架与消息总线.md §4.6
+#  节点清单唯一真源：docs/架构设计与路线图.md §5.4
+# ════════════════════════════════════════════════════════════════════
+#
+# 设计说明（★ 重要，别改成「把没实现的节点注释掉」）：
+#
+#   12 个节点**一次写全**，`enabled` 全部为 true。
+#   未实现的节点（agent/nodes/<name>/ 还不存在）会被 supervisor 标记为
+#   `missing` 并跳过 —— 不进重启循环、不报错。
+#
+#   所以某个节点任务（T1/T2/T3/T4/T5…）落地后**不需要改本文件**，
+#   `python -m agent.core.cli run-all` 会自动把它带起来；
+#   `python -m agent.core.cli nodes` 会如实显示每个节点的模块状态。
+#
+#   对应开关：[supervisor].skip_missing = true
+#
+# 单跑某个节点（调试）不需要本文件：
+#   python -m agent.core.cli run pose
+# ════════════════════════════════════════════════════════════════════
+
+[supervisor]
+# 非正常退出（退出码非 0）→ 按指数退避重启
+restart = true
+# 退避：第 n 次重启等 min(initial * 2^(n-1), max)
+backoff_initial_ms = 500
+backoff_max_ms = 30000
+# 连续重启超过这个次数就标记 failed，不再重启（防重启风暴）
+max_restarts = 10
+# 停子进程三级兜底里"等优雅退出"的时间：CTRL_BREAK → 等 stop_timeout_ms → terminate → kill
+stop_timeout_ms = 5000
+# 模块不存在的节点标记 missing 并跳过（见上面「设计说明」）
+skip_missing = true
+# 稳定运行超过这么久就重置重启计数（免得"一天崩一次"最终被判 failed）
+backoff_reset_after_s = 60.0
+# 退出码 0 视为"主动正常退出"，默认不重启（要重启就改成 true）
+restart_on_clean_exit = false
+# 额外的 PYTHONPATH（project_root 会自动加进去，一般不用填）。
+# 注意：它同时用于"模块是否存在"的判断，所以自定义节点目录要写在这里。
+pythonpath = []
+
+# ── 12 个节点（顺序同 §5.4）────────────────────────────────────────
+# `module` 默认就是 "agent.nodes.<name>"，需要时（自定义路径 / 测试注入假节点）可覆盖。
+
+[[node]]
+name = "camera"          # [T2] 摄像头采集（多设备热切换）→ feature/frame.raw
+enabled = true
+
+[[node]]
+name = "pose"            # [T2] 姿态 33 点 → feature/pose
+enabled = true
+
+[[node]]
+name = "face"            # [T2/T6] 面部 + 表情 + 头姿 → feature/face
+enabled = true
+
+[[node]]
+name = "audio"           # [T2/T6] 音量分级 / 事件 / 关键词 → feature/audio
+enabled = true
+
+[[node]]
+name = "device"          # [T2] 设备枚举与热切换（M0）→ event/device
+enabled = true
+
+[[node]]
+name = "coyote_v4"       # [T4] 开火 / 清场（官方 SDK）→ event/fire
+enabled = true
+
+[[node]]
+name = "sim_coyote"      # [T1] 模拟郊狼 BLE 外设 → command/raw_v4（仅本机）
+enabled = true
+
+[[node]]
+name = "pawprints"       # [T7] 爪印 BLE → event/pawprint
+enabled = true
+
+[[node]]
+name = "heart"           # [T7] 心率 BLE → feature/heart
+enabled = true
+
+[[node]]
+name = "rules"           # [T8] 判定引擎（警戒线 / 维持姿势）→ command/fire
+enabled = true
+
+[[node]]
+name = "bridge"          # [T3] 跨机桥接（白名单 + 加密）—— 不发布本机 key
+enabled = true
+
+[[node]]
+name = "web"             # [T5] 面板后端（转 WS 给浏览器）
+enabled = true

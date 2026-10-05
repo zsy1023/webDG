@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CoyoteLink · 骨骼预览</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#e6edf3; --dim:#8b949e; --accent:#58a6ff; --ok:#3fb950; --bad:#f85149; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 "Segoe UI",system-ui,"Microsoft YaHei",sans-serif; }
+  header { display:flex; align-items:center; gap:16px; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; font-weight:600; }
+  .field { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--dim); }
+  select { background:#0d1117; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 8px; max-width:260px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--bad); display:inline-block; }
+  .dot.on { background:var(--ok); }
+  main { display:flex; gap:12px; padding:12px; align-items:flex-start; flex-wrap:wrap; }
+  canvas { background:#010409; border:1px solid var(--line); border-radius:10px; width:min(78vw,1000px); height:auto; }
+  aside { flex:1; min-width:220px; display:flex; flex-direction:column; gap:10px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:0 0 8px; }
+  .kv { display:flex; justify-content:space-between; font-variant-numeric:tabular-nums; }
+  .bar { height:8px; border-radius:4px; background:#0d1117; border:1px solid var(--line); overflow:hidden; margin-top:6px; }
+  .bar > i { display:block; height:100%; background:linear-gradient(90deg,var(--ok),var(--accent)); width:0%; }
+  .pill { font-size:12px; padding:1px 8px; border-radius:999px; border:1px solid var(--line); color:var(--dim); }
+  .hint { color:var(--dim); font-size:12px; }
+  code { background:#0d1117; border:1px solid var(--line); border-radius:4px; padding:0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CoyoteLink · 骨骼预览</h1>
+  <span class="field"><span class="dot" id="conn"></span><span id="connText">未连接</span></span>
+  <span class="field">摄像头
+    <select id="cameraSel"><option value="">（自动）</option></select>
+  </span>
+  <span class="field">麦克风
+    <select id="micSel"><option value="">（自动）</option></select>
+  </span>
+  <span class="pill" id="fps">-- FPS</span>
+  <span class="pill" id="poseState">pose: 等待</span>
+</header>
+
+<main>
+  <canvas id="stage" width="1000" height="750"></canvas>
+  <aside>
+    <div class="card">
+      <h2>姿态</h2>
+      <div class="kv"><span>人在画面</span><span id="present">—</span></div>
+      <div class="kv"><span>序帧 seq</span><span id="seq">—</span></div>
+      <div class="kv"><span>可见点</span><span id="visible">—</span></div>
+    </div>
+    <div class="card">
+      <h2>头部姿态</h2>
+      <div class="kv"><span>yaw</span><span id="yaw">—</span></div>
+      <div class="kv"><span>pitch</span><span id="pitch">—</span></div>
+      <div class="kv"><span>roll</span><span id="roll">—</span></div>
+    </div>
+    <div class="card">
+      <h2>音量</h2>
+      <div class="bar"><i id="audioBar"></i></div>
+      <div class="kv" style="margin-top:6px"><span>事件</span><span id="audioEvent">—</span></div>
+    </div>
+    <div class="card">
+      <div class="hint">
+        只有 <b>JSON 特征</b>流过（坐标 / 角度 / 音量），没有像素。<br />
+        用 <code>python -m agent.core.cli run camera</code> / <code>run pose</code> /
+        <code>run device</code> 起节点。
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script>
+// ── MediaPipe BlazePose 33 点连线（前端只用它画线，不是协议的一部分）──
+const POSE_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],
+  [11,12],[11,13],[13,15],[15,17],[15,19],[15,21],[17,19],
+  [12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
+  [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],
+  [27,29],[28,30],[29,31],[30,32],[27,31],[28,32],
+];
+
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+
+let pose = null;        // {ts,seq,present,landmarks,visibility}
+let face = null;        // {head:{yaw,pitch,roll}}
+let devicesMsg = null;
+let audioLevel = 0, audioEvent = "—";
+
+let frameCount = 0, fpsTimer = performance.now();
+
+function $(id) { return document.getElementById(id); }
+
+// ── WebSocket ──────────────────────────────────────────────
+let ws = null;
+function connect() {
+  const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+  ws = new WebSocket(url);
+  ws.onopen = () => { $("conn").classList.add("on"); $("connText").textContent = "已连接"; ws.send(JSON.stringify({op:"list"})); };
+  ws.onclose = () => { $("conn").classList.remove("on"); $("connText").textContent = "断开，重试中…"; setTimeout(connect, 1500); };
+  ws.onerror = () => {};
+  ws.onmessage = (ev) => {
+    let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+    if (msg.type === "pose") { pose = msg; }
+    else if (msg.type === "face") { face = msg; }
+    else if (msg.type === "audio") { audioLevel = msg.level || 0; audioEvent = msg.event || "—"; }
+    else if (msg.type === "devices") { devicesMsg = msg; renderDevices(msg); }
+  };
+}
+connect();
+
+// ── 设备下拉框 ─────────────────────────────────────────────
+function renderDevices(msg) {
+  const devices = msg.devices || [];
+  const selected = msg.selected || {};
+  fillSelect($("cameraSel"), devices.filter(d => d.kind === "camera"), selected.camera);
+  fillSelect($("micSel"), devices.filter(d => d.kind === "microphone"), selected.microphone);
+}
+function fillSelect(sel, list, selectedId) {
+  const current = sel.value;
+  sel.innerHTML = '<option value="">（自动）</option>';
+  for (const d of list) {
+    const opt = document.createElement("option");
+    opt.value = d.id;
+    opt.textContent = d.name + (d.available === false ? "（不可用）" : (d.detail && d.detail.loopback ? "（回环）" : ""));
+    if (d.available === false) opt.disabled = true;
+    sel.appendChild(opt);
+  }
+  const want = selectedId || current;
+  if (want && [...sel.options].some(o => o.value === want)) sel.value = want;
+}
+$("cameraSel").addEventListener("change", e => pick("camera", e.target.value));
+$("micSel").addEventListener("change", e => pick("microphone", e.target.value));
+function pick(kind, id) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({op:"select", kind, id}));
+}
+
+// ── 绘制 ───────────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  drawGrid();
+  if (pose && pose.present && pose.landmarks && pose.landmarks.length) {
+    drawSkeleton(pose);
+  } else {
+    ctx.fillStyle = "#8b949e";
+    ctx.font = "16px sans-serif";
+    ctx.fillText("等待姿态数据…（人是否在画面里？）", W / 2 - 150, H / 2);
+  }
+  updateHud();
+  requestAnimationFrame(draw);
+}
+
+function drawGrid() {
+  ctx.strokeStyle = "#161b22";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += W / 10) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y <= H; y += H / 10) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+}
+
+function px(p) { return (1 - p[0]) * W; }   // 镜像，像照镜子
+function py(p) { return p[1] * H; }
+
+function drawSkeleton(frame) {
+  const lm = frame.landmarks;
+  const vis = frame.visibility || [];
+  const visible = (i) => (vis.length ? vis[i] > 0.5 : true);
+
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#58a6ff";
+  ctx.lineCap = "round";
+  for (const [a, b] of POSE_CONNECTIONS) {
+    if (!lm[a] || !lm[b]) continue;
+    ctx.globalAlpha = (visible(a) && visible(b)) ? 0.95 : 0.25;
+    ctx.beginPath();
+    ctx.moveTo(px(lm[a]), py(lm[a]));
+    ctx.lineTo(px(lm[b]), py(lm[b]));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  for (let i = 0; i < lm.length; i++) {
+    ctx.fillStyle = visible(i) ? "#e6edf3" : "#30363d";
+    ctx.beginPath();
+    ctx.arc(px(lm[i]), py(lm[i]), 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // 头部朝向箭头（来自 face 节点）
+  if (face && face.head && lm[0]) {
+    const yaw = (face.head.yaw || 0) * Math.PI / 180;
+    const cx = px(lm[0]), cy = py(lm[0]);
+    const r = 48;
+    // 镜像后 yaw 方向也跟着翻
+    const tx = cx - Math.sin(yaw) * r;
+    const ty = cy - Math.cos(yaw) * 10 - Math.abs(face.head.pitch || 0) * 0.4;
+    ctx.strokeStyle = "#f0883e";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(tx, ty); ctx.stroke();
+    ctx.beginPath(); ctx.arc(tx, ty, 5, 0, Math.PI * 2); ctx.fillStyle = "#f0883e"; ctx.fill();
+  }
+}
+
+function updateHud() {
+  const present = pose && pose.present ? "是" : "否";
+  $("present").textContent = pose ? present : "—";
+  $("seq").textContent = pose ? pose.seq : "—";
+  if (pose && pose.landmarks && pose.visibility) {
+    const n = pose.visibility.filter(v => v > 0.5).length;
+    $("visible").textContent = n + " / " + pose.landmarks.length;
+  }
+  if (face && face.head) {
+    $("yaw").textContent = face.head.yaw + "°";
+    $("pitch").textContent = face.head.pitch + "°";
+    $("roll").textContent = face.head.roll + "°";
+  }
+  $("poseState").textContent = "pose: " + (pose ? (pose.present ? "有" : "空") : "等待");
+  $("audioBar").style.width = Math.round(Math.min(1, audioLevel) * 100) + "%";
+  $("audioEvent").textContent = audioEvent;
+
+  frameCount++;
+  const now = performance.now();
+  if (now - fpsTimer >= 500) {
+    $("fps").textContent = Math.round(frameCount / ((now - fpsTimer) / 1000)) + " FPS";
+    frameCount = 0; fpsTimer = now;
+  }
+}
+
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

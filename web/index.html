@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0908">
+<meta name="description" content="webDG · 远程联动控制台 —— 只传结构化特征，不传音视频">
+<title>webDG · 控制台</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0908'/%3E%3Ctext x='16' y='22' font-size='14' font-family='monospace' font-weight='bold' text-anchor='middle' fill='%23ffe99d'%3EDG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/panel.css">
+</head>
+<body>
+
+<!-- 背景网格（ShapeGrid 移植）：整页最底层装饰，不接收指针事件 -->
+<canvas id="bgGrid" aria-hidden="true"></canvas>
+
+<!-- ═══════════════════════════════════════════════════════════
+     房间入口层：页面打开即控制台，第一件事是「创建房间 / 加入房间」
+     （遮罩层，选完收起；顶栏「🚪 房间」按钮可随时再开）
+     ═══════════════════════════════════════════════════════════ -->
+<div class="room-layer" id="roomLayer">
+  <div class="room-card">
+    <div class="room-brand">
+      <span class="room-mark">DG</span>
+      <h1 class="room-title">web<b>DG</b></h1>
+    </div>
+    <p class="room-tagline">远程联动控制台 · 只传结构化特征，不传音视频</p>
+
+    <!-- ① 选择 -->
+    <div class="room-pane" id="roomChoicePane">
+      <button id="btnCreateRoom" class="room-btn primary">
+        <span class="t">创建房间</span>
+        <span class="d">生成一个房间码，等对方加入</span>
+      </button>
+      <button id="btnJoinRoom" class="room-btn">
+        <span class="t">加入房间</span>
+        <span class="d">粘贴对方的邀请信息，或手填房间码</span>
+      </button>
+      <button id="btnLocalMode" class="room-link">跳过 · 本地模式（room = local）</button>
+    </div>
+
+    <!-- ② 创建：显示房间码 -->
+    <div class="room-pane" id="roomCreatePane" hidden>
+      <label>房间码（共享口令 —— 对方要填同一个才在同一条链路上）</label>
+      <div class="code-row">
+        <div class="code-slots" id="roomCodeOut" data-len="6"></div>
+        <button id="btnCopyCode" class="ghost small">复制码</button>
+      </div>
+      <div class="hint" id="roomCreateHint"></div>
+      <label>樱花穿透 —— 对方连我走的地址（樱花给什么就填什么，走 https/wss）</label>
+      <div class="row">
+        <input type="text" id="roomTunnelHost" placeholder="樱花域名，如 xxxx.natfrp.com" autocomplete="off" spellcheck="false">
+        <input type="number" id="roomTunnelPort" min="1" max="65535" placeholder="樱花给的端口">
+      </div>
+      <div class="hint">对端地址：<code id="roomTunnelUrl">wss://…（填了域名 + 端口就有）</code></div>
+      <button id="btnCopyInvite" class="ghost">📋 复制邀请信息（含对端地址）</button>
+      <div class="room-actions">
+        <button id="btnCreateBack" class="ghost">返回</button>
+        <button id="btnCreateEnter" class="room-btn primary inline">进入控制台</button>
+      </div>
+    </div>
+
+    <!-- ③ 加入：填房间码（或直接粘对方的邀请信息） -->
+    <div class="room-pane" id="roomJoinPane" hidden>
+      <label>房间码（共享口令 —— 跟对方填同一个）</label>
+      <input type="text" id="roomCodeIn" placeholder="例如 AB12CD（也可把整段邀请信息粘进来）" maxlength="64"
+             autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <label>对端地址（樱花穿透：域名 + 端口，走 wss/https；同机演示可留空）</label>
+      <div class="row">
+        <input type="text" id="roomUrlIn" placeholder="wss://xxxx.natfrp.com:12345" autocomplete="off" spellcheck="false">
+        <input type="number" id="roomUrlPort" min="1" max="65535" placeholder="端口">
+      </div>
+      <div class="msg err" id="roomJoinMsg"></div>
+      <button id="btnJoinPaste" class="ghost">📋 粘贴邀请（自动填码和地址）</button>
+      <div class="hint" id="roomJoinHint">
+        对面点「复制邀请信息」发你一整段？直接点上面的按钮，或把那段 Ctrl+V 粘进「房间码」框里 ——
+        房间码和地址会自动拆好。<b>没有服务器校验这个码存不存在</b>：填任意码都会"切过去"，
+        但只有跟对方填<b>同一个码</b>，两边才会落在同一条链路上（跨机链路 + AEAD 密钥都由它派生）。
+        手机跟电脑不共享剪贴板，所以手机上让对面把那段邀请信息发过来手粘，或扫描对面出示的二维码。
+      </div>
+      <div class="room-actions">
+        <button id="btnJoinBack" class="ghost">返回</button>
+        <button id="btnJoinEnter" class="room-btn primary inline">加入</button>
+      </div>
+    </div>
+
+    <!-- ④ 已在房间里（再次打开入口层时显示） -->
+    <div class="room-pane" id="roomActivePane" hidden>
+      <div class="room-current">
+        <div class="cur-row"><span class="cur-k">房间码</span><b id="roomActiveCode">—</b></div>
+        <div class="cur-row"><span class="cur-k">后端实际</span><b id="roomActiveBackend">—</b></div>
+        <div class="cur-row"><span class="cur-k">状态</span><span id="roomActiveState">—</span></div>
+      </div>
+      <div class="room-actions">
+        <button id="btnActiveCopy" class="ghost">复制邀请</button>
+        <button id="btnActiveQr" class="ghost" data-tip="给别人扫：打开本面板并带上房间码（只在能用局域网地址打开面板时才有用）">📱 邀请二维码</button>
+        <button id="btnActiveSwitch" class="ghost">换房间</button>
+        <button id="btnActiveLeave" class="ghost danger">离开房间</button>
+      </div>
+      <div class="qr-wrap" id="roomQrActive" hidden></div>
+      <button id="btnActiveEnter" class="room-btn primary inline">回到控制台</button>
+    </div>
+
+    <p class="room-toast" id="roomToast" hidden></p>
+    <p class="room-foot" id="roomFoot">未选择房间时，面板以本地模式运行（数据只在本机）。</p>
+  </div>
+</div>
+
+<!-- ═══ 顶栏 ═══ -->
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">DG</span>
+    <h1 class="brand-name">web<b>DG</b><span class="sub">控制台</span></h1>
+  </div>
+  <button class="chip chip-btn" id="roomChip" data-tip="房间：创建 / 加入 / 查看当前"><span class="dot" id="roomDot"></span>房间 <b id="roomLabel">—</b></button>
+  <span class="chip" data-tip="当前活跃的节点数（后端各节点的心跳，10 秒内算活跃）">节点 <b id="peerLabel">—</b></span>
+  <span class="chip" id="connChip" data-tip="与面板后端的连接（断开会自动重连并退回本地演示）">
+    <span class="dot" id="connDot"></span><span id="connText">未连接</span>
+  </span>
+  <span class="chip mono" id="fpsChip" data-tip="骨骼舞台的渲染帧率">-- FPS</span>
+  <span class="chip mono" id="latChip" data-tip="与后端的往返延迟（每 3 秒 ping 一次，这是真 RTT）">RTT -- ms</span>
+  <span class="chip mono" id="sourceChip" data-tip="当前数据来源：后端 / 离线演示（只有 ?mock=1 才用）">数据：—</span>
+  <button id="btnRoom" class="ghost small" data-tip="创建或加入房间">🚪 房间</button>
+  <button id="btnConnect" class="ghost small" data-tip="重连后端（连不上会一直重试，不会用假数据填充）">🔌 重连</button>
+</header>
+
+<!-- 🛑 急停：常驻固定，任何状态都可见可点（需求硬性） -->
+<button id="btnStopFixed" class="stop-fixed" data-tip="一键清场（command/clear）—— 立刻停，不需要确认">🛑 急停</button>
+
+  <!-- 视角切换：控制 = 去操作**对端**那台电脑；被控 = **本机**设备（给对方控制 / 本地调试）——
+       两栏都是同一套节点的两种视角，区别只在「开火目标」指向谁。 -->
+  <nav class="ui-tabs" id="uiTabs">
+    <button type="button" class="tab active" data-tab="control">🎮 控制（操作对端）</button>
+    <button type="button" class="tab" data-tab="controlled">🎯 被控（本机设备）</button>
+    <span class="hint" id="tabHint">控制＝你在这里开火 / 发波形的对象是**另一台电脑**；被控＝**你自己这台**的设备与本地调试</span>
+  </nav>
+
+<main class="layout" id="viewControl">
+
+  <!-- 对端未连接：这一栏是"去操作另一台机器"，对端没上就不该给可操作界面（用户要求） -->
+  <div class="peer-gate" id="peerGate" hidden>
+    <div class="peer-gate-card">
+      <h2>🔌 对端未连接</h2>
+      <p>「控制」这一栏是去操作<b>另一台机器</b>上的设备。现在房间里只有本机，
+        这里的开火 / 波形 <b>到不了任何地方</b>，所以先不显示操作界面。</p>
+      <ul>
+        <li>在另一台机器上启动 webDG（双击它的 <code>start.cmd</code>）</li>
+        <li>两端用<b>同一个房间码</b>（一端创建、另一端加入）</li>
+        <li>对端上来后，这一栏的按钮自动变得可用</li>
+      </ul>
+      <p class="hint">看本机设备 / 本地调试（摄像头、麦克风、串口、本机郊狼）请切到「🎯 被控」。</p>
+    </div>
+  </div>
+  <!-- 这一页只干一件事：**去打对端那台机器**。对端没连上时 tab 是禁用的（点不进来）。 -->
+  <!-- ── 左列：开火 / 波形 ── -->
+  <section class="col left">
+
+    <!-- 开火控制 -->
+    <div class="card" id="cardFire">
+      <div class="card-head"><h2>🔥 开火控制</h2><span class="hint" id="waveCount"></span></div>
+
+      <label>波形（官方 + 导入）</label>
+      <div class="row">
+        <select id="waveSel"></select>
+        <button id="btnDeleteWave" class="ghost small" style="flex:0 0 auto">删除选中</button>
+      </div>
+
+      <div class="row">
+        <label>通道
+          <select id="channelSel"><option value="A">A</option><option value="B">B</option></select>
+        </label>
+        <label>优先级
+          <select id="prioritySel">
+            <option value="0">0 低</option>
+            <option value="1" selected>1 中</option>
+            <option value="2">2 高</option>
+          </select>
+        </label>
+      </div>
+
+      <label>时长 <b id="durVal">2.0</b> s
+        <input type="range" id="durRange" min="0.5" max="30" step="0.5" value="2">
+      </label>
+
+      <label>强度模式</label>
+      <div class="row">
+        <select id="intensityMode">
+          <option value="delta" selected>增加</option>
+          <option value="abs">设定到</option>
+          <option value="none">不动强度</option>
+        </select>
+        <input type="number" id="intensityValue" value="10" min="0" max="200" step="1">
+      </div>
+
+      <label>开火目标 <span class="dim" id="fireTargetHint">（不指名 = 只打本机）</span></label>
+      <select id="fireTarget">
+        <option value="local" selected>只打本机（我自己扫码连的那台）</option>
+        <option value="all">房间里所有机器一起打</option>
+      </select>
+      <p class="hint">郊狼输出 = 强度 × 波形；「增加 N」是最直观的「开火」。</p>
+
+      <label class="chk" data-tip="默认抢占：先把这条通道清空再播我们的波形，开火时长内波形会一直循环，结束后强度自动回落到开火前。勾上「叠加」就是不抢占（会和对端已在跑的波形叠在一起）。">
+        <input type="checkbox" id="overlayChk">
+        叠加（不抢占 —— 会和对方当前波形叠在一起，一般别勾）</label>
+      <p class="hint">
+        开火语义：先抢占这条通道 → 波形按时长循环播放 → 时长到了强度自动回落到开火前的值。
+        上一次开火用的波形会记着，下一次开火结束时会发回去（App 里用户自己选的波形协议读不到，那种情况只能清空）。
+      </p>
+
+      <button id="btnFire" class="fire">🔥 开 火</button>
+      <div class="hint" id="fireAck"></div>
+      <button id="btnStop" class="stop-inline">🛑 急停 / 清场</button>
+    </div>
+
+    <!-- 波形导入 -->
+    <div class="card">
+      <div class="card-head"><h2>📥 波形导入（V2 / V3）</h2></div>
+      <div class="row">
+        <input type="text" id="impName" placeholder="波形名（如：我的波形）">
+        <select id="impVersion">
+          <option value="auto" selected>自动识别 V2/V3</option>
+          <option value="2">强制 V2（6 位 hex/帧）</option>
+          <option value="3">强制 V3（16 位 hex/帧）</option>
+        </select>
+      </div>
+      <div class="row">
+        <input type="file" id="impFile" accept=".json,.txt">
+        <button id="btnImport" class="ghost">导入到后端</button>
+      </div>
+      <div class="hint">
+        选文件即导入（.txt 每行一帧 / .json 里是 frames 数组）：
+        版本按帧长自动识别（V2 = 6 位 hex、V3 = 16 位 hex），同一条波形里不能混用。
+      </div>
+      <div class="hint">已导入的波形（可删除 / 重命名；官方不可删）</div>
+      <div id="importedList" class="list"></div>
+      <div id="impMsg" class="msg"></div>
+    </div>
+  </section>
+
+  <!-- ── 右列：规则 / 日志 / 调试 ── -->
+  <section class="col right">
+
+    <!-- 规则编辑（表单 + **在画布上画**） -->
+    <div class="card">
+      <div class="card-head"><h2>📐 规则</h2><span class="hint" id="ruleSync">规则会整体下发给后端</span></div>
+      <div class="row">
+        <input type="text" id="ruleName" placeholder="规则名">
+        <select id="ruleCond">
+          <option value="警戒线">警戒线</option>
+          <option value="维持姿势">维持姿势</option>
+          <option value="按钮">按钮</option>
+          <option value="心率阈值">心率阈值</option>
+        </select>
+      </div>
+      <!-- ★ 可视化编辑：选关键点 + 形状 → 在骨骼画布上拖 -->
+      <div class="row">
+        <select id="ruleTarget" title="要判定哪个关键点"></select>
+        <select id="ruleShape" title="画什么形状">
+          <option value="line-h">横线（线下方）</option>
+          <option value="line-v">竖线（线左侧）</option>
+          <option value="rect">矩形框</option>
+          <option value="circle">圆</option>
+        </select>
+        <button id="btnDrawRule" class="ghost" title="点这里，然后去左边的骨骼画布上拖">✏️ 画</button>
+      </div>
+      <div class="row">
+        <input type="text" id="ruleParam" placeholder="条件参数（可画，也可手敲如 left_wrist:y&gt;0.5）">
+        <select id="ruleWave"><option value="">波形…</option></select>
+      </div>
+      <div class="row">
+        <select id="ruleChannel"><option value="A">通道 A</option><option value="B">通道 B</option></select>
+        <input type="number" id="ruleDur" placeholder="时长 ms" value="2000" min="100" step="100">
+        <input type="number" id="ruleCd" placeholder="冷却 s" value="5" min="0" step="1">
+      </div>
+      <!-- ★ 两个质量字段：缓冲（防抖）与可信度（防误判） -->
+      <div class="row">
+        <label class="mini" title="条件要连续成立这么久才算数 —— 防止识别抖动误触发">
+          缓冲 <input type="number" id="ruleDebounce" value="250" min="0" max="5000" step="50"> ms
+        </label>
+        <label class="mini" title="关键点可见度低于它的不参与判定 —— 模型看不清就不采信">
+          可信度 <input type="number" id="ruleMinVis" value="0.5" min="0" max="1" step="0.05">
+        </label>
+      </div>
+      <button id="btnAddRule" class="ghost">➕ 添加规则</button>
+      <div id="ruleList" class="list"></div>
+    </div>
+
+    <!-- 审计日志 -->
+    <div class="card">
+      <div class="card-head">
+        <h2>🧾 审计日志</h2>
+        <button id="btnExportLog" class="ghost small">导出 JSON</button>
+      </div>
+      <div id="logList" class="list log"></div>
+      <div class="hint" id="logHint">开火记录会高亮显示。</div>
+    </div>
+
+    <!-- 调试：后端会把本节点没认领的 key 原样转发过来（默认折叠） -->
+    <details class="card dbg" id="dbgCard">
+      <summary class="card-head">
+        <h2>🔍 调试 · 未认领的 key</h2>
+        <span class="hint" id="dbgCount">0 条</span>
+      </summary>
+      <div class="hint">后端把本节点没认领的 key 原样转发过来；已过滤自己发出的
+        <code>command/*</code> 回环（本节点订阅了全部 key，会收到自己的广播）。</div>
+      <div id="dbgList" class="list"></div>
+    </details>
+  </section>
+</main>
+
+<!-- ═══ 被控页：**本机设备**（摄像头 / 麦克风 / 串口 / BLE / 本机郊狼 + 骨骼）═══ -->
+<main class="layout" id="viewControlled" hidden>
+
+  <!-- ── 左列：本机画面与传感器 ── -->
+  <!-- ── 左列：舞台 + 状态条 ── -->
+  <section class="col left">
+    <div class="card stage-card">
+      <div class="card-head">
+        <h2>骨骼舞台</h2>
+        <span class="hint" id="poseState">pose：等待</span>
+      </div>
+      <div class="stage-wrap">
+        <canvas id="stage" width="720" height="540"></canvas>
+      </div>
+      <div class="stage-foot">
+        <span data-tip="visibility 大于 0.5 的关键点数量">可见点 <b id="visCount">—</b></span>
+        <span data-tip="姿态帧序号（后端自增）">seq <b id="seqNum">—</b></span>
+        <span data-tip="seq 比当前小的帧会被丢掉 —— 只渲染最新帧、不排队，否则画面会越描越滞后">丢帧 <b id="dropNum">0</b></span>
+        <span data-tip="端到端延迟 = 本机收到的时刻 − 帧自带的时间戳（与顶栏的链路 RTT 是两回事）">帧延迟 <b id="poseLat">—</b></span>
+      </div>
+    </div>
+
+    <!-- 状态条：表情 / 声音 / 心率 / 连接 -->
+    <div class="statusbar">
+      <div class="card stat" id="statEmotion">
+        <h2>表情</h2>
+        <div class="big"><span class="emoji" id="emoEmoji">🙂</span><span id="emoText">—</span></div>
+        <div class="bar"><i id="emoBar"></i></div>
+        <div class="hint" id="emoConf">置信度 —</div>
+      </div>
+      <div class="card stat" id="statAudio">
+        <h2>声音</h2>
+        <div class="big"><span class="emoji">🔊</span><span id="audioEvent">—</span></div>
+        <div class="bar"><i id="audioBar"></i></div>
+        <div class="hint" id="audioText">—</div>
+      </div>
+      <div class="card stat" id="statHeart">
+        <h2>心率</h2>
+        <div class="big"><span class="emoji">❤️</span><span id="heartVal">—</span></div>
+        <canvas id="heartCanvas" width="240" height="44"></canvas>
+        <div class="hint">无心率带时占位</div>
+      </div>
+    </div>
+
+    <!-- 仪表盘：左=链路状态，右=**本机 socket 设备**（手机 DG-LAB App 连进来的那台郊狼） -->
+    <div class="card dash-card">
+      <div class="card-head"><h2>📟 仪表盘</h2><span class="hint" id="dashHint">链路 / 本机 socket 郊狼</span></div>
+      <div class="dash-grid">
+        <div class="dash-pane">
+          <div class="dash-title">链路状态 <span class="dim">（这台电脑）</span></div>
+          <div class="cur-row"><span class="cur-k">Relay</span><b id="dashRelay">—</b></div>
+          <div class="cur-row"><span class="cur-k">targetId</span><b class="mono" id="dashTid">—</b></div>
+          <div class="cur-row"><span class="cur-k">手机 App</span><b id="dashApp">—</b></div>
+          <div class="cur-row"><span class="cur-k">房间</span><b id="dashRoom">—</b></div>
+        </div>
+        <div class="dash-pane">
+          <div class="dash-title">本机 socket 设备 <span class="dim">（手机 App 那台郊狼）</span></div>
+          <div class="cur-row"><span class="cur-k">设备</span><b id="dashDev">—</b></div>
+          <div class="cur-row"><span class="cur-k">通道 A</span><b id="dashA">—</b></div>
+          <div class="cur-row"><span class="cur-k">通道 B</span><b id="dashB">—</b></div>
+          <div class="cur-row"><span class="cur-k">最近开火</span><b id="dashFire">—</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 右列：本机设备 / 链路 / 收到什么 ── -->
+  <section class="col right">
+
+    <div class="card">
+      <div class="card-head">
+        <h2>🎯 本机设备（被控）</h2>
+        <span class="hint">对端把「开火目标」选成 <b id="ctlMyHost">这台机器</b> 时，打到的就是这里</span>
+      </div>
+      <div class="cur-row"><span class="cur-k">房间</span><b id="ctlRoom">—</b></div>
+      <div class="cur-row"><span class="cur-k">链路上的机器</span><b id="ctlPeers">—</b></div>
+      <div class="cur-row"><span class="cur-k">我的郊狼</span><b id="ctlDevice">—</b></div>
+      <div class="cur-row"><span class="cur-k">通道 A</span><b id="ctlA">—</b></div>
+      <div class="cur-row"><span class="cur-k">通道 B</span><b id="ctlB">—</b></div>
+      <p class="hint">
+        对端的开火会经「同房间的 key 前缀」送过来，本机的 coyote_v4 节点按 <code>target</code>
+        判断是不是给我的（<code>local</code> 只打本机、<code>all</code> 房间里全打、主机名指名道姓）。
+        不指名时默认只打发送方自己那台 —— 不会两边一起动。
+      </p>
+    </div>
+
+    <!-- 连接与配对（郊狼 Relay / ESP32 / 手机 App / 摄像头）—— 有灯、也有按钮 -->
+    <div class="card">
+      <div class="card-head"><h2>🔌 连接与配对</h2><span class="hint" id="linkHint">四条链路的状态与操作</span></div>
+
+      <!-- ① 郊狼 Relay + **App 扫的配对二维码**（这才是"连郊狼"用的码）-->
+      <div class="link-row">
+        <span class="dot" id="dotRelay" title="等待状态…"></span>
+        <span class="grow">郊狼 Relay <code id="relayUrl">—</code></span>
+        <span class="mono" id="relayState">等待…</span>
+      </div>
+      <div class="link-sub">
+        <span class="mono">targetId <b id="relayTid">—</b></span>
+        <button id="btnPairing" class="ghost small" data-tip="显示/隐藏手机 DG-LAB App 要扫的二维码">📱 配对二维码</button>
+        <button id="btnCopyPairing" class="ghost small" data-tip="复制配对链接（发到手机上点开也能连）">复制配对链接</button>
+      </div>
+      <div class="qr-wrap" id="pairingQr" hidden></div>
+      <div class="hint row-hint" id="relayHint" hidden></div>
+      <div class="hint" id="pairingHint">
+        ★ 连郊狼就靠这个码：手机 DG-LAB App 扫它接入本机 socket（码里带着 targetId 和房间口令）。
+        它和「房间」里那个邀请二维码<b>不是一回事</b> —— 那个是给人扫了打开本面板的。
+      </div>
+
+      <!-- ② ESP32 模拟郊狼主机：真板子 + 一个真正的「连接」按钮 -->
+      <div class="link-row">
+        <span class="dot" id="dotEsp32" title="等待状态…"></span>
+        <span class="grow">ESP32 · 模拟郊狼主机 <code id="esp32Port">—</code></span>
+        <span class="mono" id="esp32State">等待…</span>
+      </div>
+      <div class="link-sub">
+        <select id="serialSel" class="mini" aria-label="ESP32 串口"></select>
+        <button id="btnConnectSerial" class="ghost small" data-tip="用下拉里选中的串口连接/重连这块 ESP32（真板子；跑的是「模拟郊狼主机」固件）">🔌 连接</button>
+      </div>
+      <div class="hint row-hint" id="serialHint" hidden></div>
+
+      <!-- ③ 手机 App 有没有连上这块 ESP32（板子是真的，被模拟的是"郊狼主机"这个角色）-->
+      <div class="link-row">
+        <span class="dot" id="dotPhone" title="手机 App 有没有连上这块 ESP32（它跑模拟郊狼主机的固件）"></span>
+        <span class="grow">手机 DG-LAB App</span>
+        <span class="mono" id="phoneState">未连接</span>
+      </div>
+
+      <!-- ④ 摄像头：当前在用哪台 + 实测帧率 + 换设备（"选了没反应"就是这里以前什么都不显示）-->
+      <div class="link-row">
+        <span class="dot" id="dotCamera" title="摄像头采集状态"></span>
+        <span class="grow">摄像头 <b id="cameraDevice">—</b></span>
+        <span class="mono" id="cameraFps">— FPS</span>
+      </div>
+      <div class="link-sub">
+        <select id="cameraSel" class="mini" aria-label="摄像头"></select>
+        <button id="btnConnectCamera" class="ghost small" data-tip="用下拉里选中的摄像头（重）连">🔌 连接</button>
+      </div>
+      <div class="hint row-hint" id="cameraHint" hidden></div>
+
+      <!-- ⑤ 心率带：**列出扫到的可用心率带** + 连接（以前只在日志里，面板啥都没有）-->
+      <div class="link-row">
+        <span class="dot" id="dotHeart" title="心率带状态"></span>
+        <span class="grow">心率带 <b id="heartDevice">—</b></span>
+        <span class="mono" id="heartBpm">— BPM</span>
+      </div>
+      <div class="link-sub">
+        <button id="btnScanHeart" class="ghost small" data-tip="心率带是被动广播的：先点它扫一遍，结果会填进右边的下拉">🔍 查找心率带</button>
+        <select id="heartSel" class="mini" aria-label="扫到的心率带"></select>
+        <button id="btnConnectHeart" class="ghost small" data-tip="连下拉里选中的那台；选「自动」就挑信号最强的那台">🔌 连接</button>
+      </div>
+      <div class="hint row-hint" id="heartHint" hidden></div>
+
+      <div class="hint" id="linkFoot">
+        心率带是被动广播的：点「🔍 查找心率带」扫一遍 → 在下拉里选一台 → 「🔌 连接」（选「自动」就挑信号最强的）。
+        摄像头灯红？→ 多半是<b>设备忙</b>（OBS / 相机 / 会议软件占着）或那台采集不了：
+        关掉占用它的程序，或在上面的下拉里换一台。ESP32 灯红 → 选对串口（别选蓝牙虚拟口）并烧好固件。
+      </div>
+    </div>
+
+    <!-- 设备选择 -->
+    <div class="card">
+      <div class="card-head"><h2>🎛 设备选择</h2><span class="hint">麦克风 / 其它 BLE（摄像头、串口、心率带在下面「连接与配对」里）</span></div>
+
+      <label>麦克风
+        <select id="micSel"><option value="">（自动）</option></select>
+      </label>
+      <label>BLE 设备（爪印 / 郊狼等；心率带在下面单独一行）
+        <select id="bleSel"><option value="">（无）</option></select>
+      </label>
+
+      <div class="hint" id="devHint">等待 event/device…</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>最近收到的开火</h2><span class="hint">谁在什么时候打了什么（含远端）</span></div>
+      <div class="list" id="ctlFireList"><div class="hint">还没有人开火</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>本地调试</h2><span class="hint">这一栏就是"你自己这台"</span></div>
+      <p class="hint">
+        被控 = <b>本机</b>：本机的摄像头 / 麦克风 / 串口 / BLE、本机郊狼强度、本机画面与骨骼都归这一栏管；
+        「开火目标」选 <code>local</code> 打的就是你自己（调试用）。<br>
+        要去打<b>另一台电脑</b>：切到「🎮 控制」，把目标选成对端那台机器再开火。
+      </p>
+    </div>
+  </section>
+</main>
+
+<!-- 移动端底部操作条（窄屏才出现；桌面隐藏） -->
+<div class="mobile-bar" id="mobileBar">
+  <button id="btnFireBar" class="bar-fire">🔥 开火</button>
+  <button id="btnStopBar" class="bar-stop">🛑 急停</button>
+</div>
+
+<script src="js/mock.js"></script>
+<script src="js/log.js"></script>
+<script src="js/hold.js"></script>
+<script src="js/skeleton.js"></script>
+<script src="js/devices.js"></script>
+<script src="js/controls.js"></script>
+<script src="js/rules.js"></script>
+<script src="js/stage-edit.js"></script>
+<script src="js/qrcode.js"></script>
+<script src="js/codeslots.js"></script>
+<script src="js/glideselect.js"></script>
+<script src="js/room.js"></script>
+<script src="js/transport.js"></script>
+<script src="js/effects.js"></script>
+<script src="js/warmtooltip.js"></script>
+<script src="js/link.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

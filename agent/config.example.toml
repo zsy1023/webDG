@@ -1,0 +1,56 @@
+# ══════════════════════════════════════════════════════════════
+#  CoyoteLink 配置模板
+#
+#  用法：复制成 agent/config.toml 再按需改。
+#  **不建也能跑** —— 缺失时全部走默认值（见 agent/core/config.py）。
+# ══════════════════════════════════════════════════════════════
+
+room = "local"          # 本机 Zenoh 房间名。**面板上创建/加入房间会改它**（落盘 data/room.json）
+                        # 跨机时它同时也是 bridge 的链路房间与加密密钥来源（见 [bridge]）
+log_level = "INFO"      # DEBUG / INFO / WARNING / ERROR / CRITICAL
+
+[paths]
+# models = "models"     # 相对 project_root；不写就用默认
+# data   = "data"
+# logs   = "logs"
+
+[zenoh]
+# 本机 Zenoh session 一般不用配；跨机 endpoint 归 bridge（见 T3）。
+# listen  = ["tcp/0.0.0.0:7447"]
+# connect = ["tcp/192.168.1.20:7447"]
+
+# ── 跨机桥接（T3）──────────────────────────────────────────────
+[bridge]
+# ★ **只需要房间码**：在面板上创建/加入一个房间码就全齐了 ——
+#   房间（key 前缀）、跨机链路房间、AEAD 密钥都由它派生，这里什么都不用配。
+#   规则见 agent/nodes/bridge/README.md：
+#     · 没配 room_code → 链路房间 = 面板选的房间；有"真房间码"就自动 AEAD 加密
+#     · 默认房间 local 会被判成"密钥人人可推" → 刻意不加密 + 警告
+role = "a"              # "a" | "b"（两端必须一 a 一 b）
+# listen = ["tcp/0.0.0.0:7451"]  # ★ 只在**跨机**时才需要。单机保持注释：
+#                                 监听 0.0.0.0 会弹 Windows 防火墙询问，还会把端口暴露到局域网
+# connect = ["tcp/<对端>:7451"] # B 端：连对端
+# room_code = "XXXXXX"  # 只在"想钉死一条固定链路、跨多个业务房间"时才需要它
+# encrypt = false       # 显式覆盖上面那条自动规则（想抓明文排障时用）
+
+# ── 郊狼 V4 控制端（T4）────────────────────────────────────────
+[coyote_v4]
+# ★ 要连的**对端 relay** —— 被控端跑 `python tools/relay.py` 的那个地址。
+#   不写 → 手动传输模式：那条路需要有人扮演 V4 服务器（先发 hello 帧，SDK 才拿得到
+#   targetId），单机跑没人当，会一直 connect_timeout 重试。
+url = "ws://127.0.0.1:9997"
+
+# ── 模拟郊狼主机（T1）──────────────────────────────────────────
+[sim_coyote]
+# BLE 外设后端：
+#   esp32    ★ 现行路线：ESP32 跑真外设（复刻真机 GATT + 广播名），经串口/TCP 与主机通信
+#   winrt    Windows 原生（**受限**：发布不了 0x180A/0x1800 → DISABLED_BY_POLICY，非交付路线）
+#   loopback 无硬件自测：把字节直接喂进协议层
+backend = "esp32"
+# ESP32 链路
+transport = "serial"    # serial（串口）| tcp（WiFi）
+port = "COM18"          # serial → 串口名；tcp → "host:port"
+                        # ⚠️ 必须填板子真实所在的串口。**别填蓝牙虚拟串口**
+                        #   （能打开成功但收不到字节 → 静默假死）。
+                        #   先列一下：python -m serial.tools.list_ports -v
+baudrate = 115200

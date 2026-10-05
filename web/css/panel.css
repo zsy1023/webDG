@@ -1,0 +1,767 @@
+/* ══════════════════════════════════════════════════════════════
+   webDG · 控制台样式
+   —— 郊狼黑金主题（黑底 + 金 #ffe99d），移动优先的响应式布局
+   —— 只依赖类名 / ID，与 JS 无耦合
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  color-scheme: dark;
+
+  /* ── 底色：扁平三档（页底 → 卡片 → 内衬），只靠明度分层，不叠渐变 ── */
+  --ink:#050403;
+  --bg:#080706;
+  --bg-2:#0d0c09;
+  --bg-3:#14120d;
+  --bg-glow-1:rgba(255,233,157,.05);
+  --bg-glow-2:rgba(255,193,88,.03);
+
+  /* ── 卡片：单色（扁平核心）── */
+  --card:#16140f;              /* 比页底亮一档，避免整片糊成一块黑 */
+  --card-in:#0d0c08;
+  --card-1:var(--card);        /* 兼容旧引用：扁平后上下同色 */
+  --card-2:var(--card);
+  --panel:var(--card);
+  --panel2:var(--card-in);
+  --panel-hi:transparent;      /* 扁平：不再叠顶部高光 */
+
+  /* ── 描边：统一细线（不再顶亮底暗）── */
+  --hair:rgba(255,233,157,.10);
+  --hair-hi:rgba(255,233,157,.22);
+  --line:var(--hair);
+  --line-str:var(--hair-hi);
+
+  /* 文字 */
+  --fg:#f6f1e4;
+  --dim:#a99f89;
+  --dim-2:#7d7462;
+
+  /* 金（主色，三档）*/
+  --gold:#ffe99d;
+  --gold-2:#f2d478;
+  --gold-3:#c9a94e;
+  --gold-deep:#7d6322;
+  --gold-glow:rgba(255,233,157,.28);
+  --gold-tint:rgba(255,233,157,.10);
+
+  /* 语义色 */
+  --ok:#8ed08a;
+  --warn:#ffc861;
+  --bad:#ff7a6b;
+  --hot:#ff4d4f;
+
+  --radius:12px;
+  --radius-lg:16px;
+  --ease-out:cubic-bezier(.23,1,.32,1);
+  --shadow:0 12px 32px rgba(0,0,0,.5);      /* 只给浮层（下拉 / 气泡 / 房间卡）用 */
+  --shadow-hi:0 16px 44px rgba(0,0,0,.6);
+  --bar-h:74px;                    /* 移动端底部操作条高度 */
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  min-height:100vh;
+  background:
+    radial-gradient(1100px 620px at 12% -8%, var(--bg-glow-1), transparent 62%),
+    var(--bg);
+  background-attachment:fixed;
+  color:var(--fg);
+  font:14px/1.55 "Segoe UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+  padding-bottom:32px;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+/* 背景网格（ShapeGrid 移植）——整页最底层，纯装饰 */
+#bgGrid{
+  position:fixed;inset:0;width:100%;height:100%;
+  z-index:0;pointer-events:none;opacity:.5;
+}
+/* 内容压在网格之上（fixed 元素靠各自 z-index 自己排） */
+.layout{position:relative;z-index:1}
+h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin:0;font-weight:650}
+.sub{color:var(--dim);font-weight:400;font-size:13px;letter-spacing:0}
+code{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.mono{font-family:"Cascadia Mono",Consolas,ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+/* ── 滚动条 ── */
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:rgba(255,233,157,.18);border-radius:999px;border:3px solid transparent;background-clip:content-box}
+*::-webkit-scrollbar-thumb:hover{background:rgba(255,233,157,.32);background-clip:content-box}
+
+/* ══ 顶栏 ══ */
+.topbar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:11px 18px;
+  background:rgba(8,7,6,.86);
+  -webkit-backdrop-filter:saturate(150%) blur(14px);
+  backdrop-filter:saturate(150%) blur(14px);
+  border-bottom:1px solid var(--hair);
+  position:sticky;top:0;z-index:50;
+}
+.brand{display:flex;align-items:center;gap:9px}
+.brand-mark{
+  display:grid;place-items:center;width:28px;height:28px;flex:0 0 auto;
+  border-radius:8px;font:700 12px/1 "Cascadia Mono",Consolas,monospace;letter-spacing:0;
+  color:#15120a;background:var(--gold);
+}
+/* 品牌名：静态双色（扁平，不做扫光） */
+.brand-name{
+  font-size:17px;font-weight:650;letter-spacing:.2px;
+  background:linear-gradient(92deg,var(--fg) 40%,var(--gold));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12px;color:var(--dim);
+  border:1px solid var(--line);border-radius:999px;
+  padding:4px 11px;background:var(--panel2);
+  transition:border-color .16s ease, color .16s ease, background .16s ease;
+}
+.chip:hover{border-color:var(--line-str);color:var(--fg)}
+.chip b{color:var(--gold);font-weight:600}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--bad);display:inline-block;
+  box-shadow:0 0 0 0 rgba(255,122,107,.5)}
+.dot.on{background:var(--ok);animation:pulse 2.4s ease-out infinite;--pulse:142,208,138}
+.dot.mock{background:var(--warn);animation:pulse 2.4s ease-out infinite;--pulse:255,200,97}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(var(--pulse,255,122,107),.55)}
+  70%{box-shadow:0 0 0 8px rgba(var(--pulse,255,122,107),0)}
+  100%{box-shadow:0 0 0 0 rgba(var(--pulse,255,122,107),0)}
+}
+
+/* ══ 按钮 ══ */
+button{cursor:pointer;font:inherit;transition:transform .1s ease, filter .16s ease,
+  border-color .16s ease, background .16s ease, box-shadow .16s ease}
+button:active{transform:translateY(1px)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.ghost{
+  background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+  border-radius:9px;padding:7px 13px;font-size:13px;
+}
+button.ghost:hover{border-color:var(--line-str);color:var(--gold);background:rgba(255,233,157,.09)}
+button.ghost.small{padding:4px 10px;font-size:12px}
+
+/* ── 🛑 固定急停（桌面右上；窄屏由底部操作条接管）── */
+.stop-fixed{
+  position:fixed;top:13px;right:14px;z-index:200;
+  background:var(--hot);color:#fff;border:0;border-radius:12px;
+  padding:14px 22px;font-size:16px;font-weight:750;letter-spacing:.5px;
+  animation:breath 3.2s ease-in-out infinite;   /* 保留：急停要"抓眼" */
+}
+.stop-fixed:hover{filter:brightness(1.1)}
+.stop-fixed:active{transform:scale(.98)}
+@keyframes breath{0%,100%{transform:scale(1)}50%{transform:scale(1.028)}}
+
+/* ══ 布局 ══ */
+.layout{
+  display:grid;grid-template-columns:minmax(370px,1.16fr) minmax(370px,1fr);
+  gap:16px;padding:16px;align-items:start;
+  max-width:1720px;margin:0 auto;
+}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+/* ── 卡片：扁平（单色底 + 统一 1px 细线；无阴影、无光斑、hover 不位移）── */
+.card{
+  position:relative;
+  background:var(--card);
+  border:1px solid var(--hair);
+  border-radius:var(--radius);
+  padding:14px 15px;min-width:0;
+  transition:border-color .16s ease;
+}
+.card:hover{border-color:var(--hair-hi)}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.card-head h2{display:flex;align-items:center;gap:7px}
+.card-head h2::before{
+  content:"";width:3px;height:11px;flex:0 0 auto;border-radius:2px;
+  background:var(--gold);
+}
+
+/* ── 舞台 ── */
+.stage-wrap{
+  position:relative;
+  background-color:#040302;
+  border:1px solid var(--hair);border-radius:12px;overflow:hidden;
+}
+#stage{display:block;width:100%;height:auto}
+.stage-foot{display:flex;gap:20px;margin-top:10px;color:var(--dim);font-size:12px;flex-wrap:wrap}
+.stage-foot b{color:var(--gold);font-family:"Cascadia Mono",Consolas,monospace}
+
+/* ── 状态条 ── */
+.statusbar{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.stat .big{display:flex;align-items:baseline;gap:9px;font-size:20px;font-weight:700;
+  margin:8px 0 2px;color:var(--fg)}
+.stat .emoji{font-size:26px;line-height:1}
+.bar{height:8px;border-radius:999px;background-color:var(--card-in);
+  border:1px solid var(--hair);overflow:hidden;margin-top:8px}
+.bar>i{display:block;height:100%;width:0%;border-radius:999px;
+  background-color:var(--gold);transition:width .16s ease}
+#heartCanvas{width:100%;height:auto;background-color:var(--card-in);border:1px solid var(--hair);
+  border-radius:8px;margin-top:8px}
+.hint{color:var(--dim);font-size:12px}
+
+/* ── 表单控件（金色化：自绘 chevron / 滑块 / 勾选框）── */
+label{display:block;font-size:12px;color:var(--dim);margin:11px 0 5px;letter-spacing:.02em}
+label.chk{display:flex;align-items:center;gap:9px;color:var(--fg);font-size:13px;margin-top:13px;
+  cursor:pointer;user-select:none}
+select,input[type=text],input[type=number],textarea{
+  width:100%;padding:8px 10px;border-radius:8px;
+  background-color:var(--card-in);
+  color:var(--fg);border:1px solid var(--hair);font:inherit;outline:none;
+  transition:border-color .14s ease, background-color .14s ease;
+}
+/* 原生 select 外观无法美化，但闭合态可以：去掉系统箭头，画自己的金色 chevron */
+select{
+  appearance:none;-webkit-appearance:none;cursor:pointer;
+  padding-right:30px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.6 6 8.1l3.5-3.5' fill='none' stroke='%23ffe99d' stroke-opacity='.6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;background-size:12px 12px;
+}
+select option{background:#15120b;color:var(--fg)}
+select:hover,input:hover,textarea:hover{border-color:var(--hair-hi)}
+/* 扁平风格的焦点：只换边框色，不加光晕 */
+select:focus,input:focus,textarea:focus{border-color:var(--gold);background-color:rgba(255,233,157,.04)}
+textarea{resize:vertical;font-family:"Cascadia Mono",Consolas,ui-monospace,monospace;font-size:12px}
+input[type=file]{font-size:12px;color:var(--dim)}
+input[type=file]::file-selector-button{
+  font:inherit;font-size:12px;margin-right:9px;padding:5px 11px;border-radius:8px;cursor:pointer;
+  background:var(--card-in);color:var(--gold);border:1px solid var(--hair-hi);
+}
+input[type=file]::file-selector-button:hover{background:var(--gold-tint)}
+
+/* 滑块：金色轨道 + 纯金圆钮（--fill 由 effects.js 跟随数值更新） */
+input[type=range]{
+  appearance:none;-webkit-appearance:none;width:100%;height:22px;background:transparent;cursor:pointer;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:6px;border-radius:999px;
+  background:linear-gradient(90deg, var(--gold) var(--fill,50%), var(--card-in) var(--fill,50%));
+}
+input[type=range]::-webkit-slider-thumb{
+  appearance:none;-webkit-appearance:none;width:16px;height:16px;margin-top:-5px;border-radius:50%;
+  background-color:var(--gold);
+}
+input[type=range]::-moz-range-track{height:6px;border-radius:999px;background-color:var(--card-in)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:999px;background-color:var(--gold)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;
+  background-color:var(--gold)}
+
+/* 勾选框：金色实心块 + 深色对勾 */
+input[type=checkbox]{
+  appearance:none;-webkit-appearance:none;
+  width:18px;height:18px;flex:0 0 auto;border-radius:5px;
+  border:1px solid var(--hair-hi);background-color:var(--card-in);
+  display:inline-grid;place-items:center;cursor:pointer;
+  transition:background-color .14s ease, border-color .14s ease;
+}
+input[type=checkbox]:hover{border-color:var(--gold-3)}
+input[type=checkbox]:checked{background-color:var(--gold);border-color:transparent}
+input[type=checkbox]:checked::after{
+  content:"";width:5px;height:9px;margin-top:-2px;
+  border:solid #1a1508;border-width:0 2px 2px 0;transform:rotate(45deg);
+}
+.row{display:flex;gap:10px;align-items:end}
+.row>*{flex:1;min-width:0}
+.row>label{margin:6px 0 0}
+
+/* ── 开火 / 急停（卡片内）── */
+button.fire{
+  position:relative;overflow:hidden;
+  width:100%;padding:16px;margin-top:14px;border:0;border-radius:10px;
+  background-color:var(--gold);color:#1a1508;
+  font-size:17px;font-weight:750;letter-spacing:2px;
+  transition:transform .08s ease, filter .14s ease;
+}
+button.fire:hover{filter:brightness(1.07)}
+/* 按下即缩，立即有反馈（开火**不做**长按确认，必须一点就发） */
+button.fire:active{transform:scale(.985);filter:brightness(1.12)}
+button.fire:disabled{background-color:#241f14;color:#7a7157;transform:none}
+/* 点击瞬间的金色冲击 —— 纯装饰，由 effects.js 打 data-burst，不参与发送时机 */
+.burst{
+  position:absolute;left:50%;top:50%;width:150%;aspect-ratio:1;border-radius:50%;
+  transform:translate(-50%,-50%) scale(.2);opacity:0;pointer-events:none;
+  background:radial-gradient(circle, rgba(255,255,255,.6), rgba(255,233,157,.18) 42%, transparent 68%);
+}
+[data-burst]>.burst{animation:burst .48s var(--ease-out) forwards}
+@keyframes burst{from{transform:translate(-50%,-50%) scale(.2);opacity:.95}
+  to{transform:translate(-50%,-50%) scale(1.15);opacity:0}}
+button.stop-inline{
+  width:100%;padding:11px;margin-top:8px;border-radius:10px;
+  background-color:rgba(255,77,79,.08);color:var(--hot);
+  border:1px solid rgba(255,77,79,.3);font-weight:650;
+}
+button.stop-inline:hover{background-color:rgba(255,77,79,.15);border-color:var(--hot)}
+
+.msg{font-size:12px;margin-top:9px;min-height:16px}
+.msg.err{color:var(--bad);white-space:pre-wrap}
+.msg.ok{color:var(--ok)}
+
+/* 开火回执 与 链路 RTT 的质量着色 */
+.ack-ok{color:var(--ok)}
+.ack-err{color:var(--bad)}
+#latChip[data-q="good"]{color:var(--ok)}
+#latChip[data-q="ok"]{color:var(--warn)}
+#latChip[data-q="bad"]{color:var(--bad)}
+
+/* ── 列表（规则 / 日志）── */
+.list{margin-top:11px;display:flex;flex-direction:column;gap:9px;max-height:46vh;overflow:auto;
+  padding-right:2px}
+.list .empty{color:var(--dim);font-size:13px;text-align:center;padding:18px 0}
+.rec{
+  background-color:var(--card-in);
+  border:1px solid var(--hair);border-left:2px solid var(--hair);
+  border-radius:8px;padding:9px 11px;font-size:13px;
+  animation:recIn .2s var(--ease-out);
+  transition:border-color .14s ease;
+}
+@keyframes recIn{from{opacity:0;transform:translateY(-4px)}}
+.rec:hover{border-color:var(--hair-hi)}
+.rec.fire{border-left-color:var(--gold);background-color:rgba(255,233,157,.05)}
+.rec .top{display:flex;justify-content:space-between;gap:8px;color:var(--dim);font-size:11px;margin-bottom:4px}
+.rec code{color:var(--gold);font-family:"Cascadia Mono",Consolas,monospace;background:transparent;border:0;padding:0}
+.rule-item{display:flex;align-items:center;gap:9px;background-color:var(--card-in);
+  border:1px solid var(--hair);border-radius:8px;padding:9px 11px;font-size:13px;
+  transition:border-color .14s ease}
+.rule-item:hover{border-color:var(--hair-hi)}
+
+/* ── 调试区（<details> 折叠面板）── */
+details.card{padding:0}
+details.card>summary{
+  list-style:none;cursor:pointer;margin:0;padding:14px 15px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary h2{display:flex;align-items:center;gap:7px}
+details.card>summary h2::before{
+  content:"";width:3px;height:11px;flex:0 0 auto;border-radius:2px;background:var(--dim-2);
+}
+details.card[open]>summary h2::before{background:var(--gold)}
+details.card>summary::after{
+  content:"▾";flex:0 0 auto;color:var(--dim);font-size:12px;
+  transition:transform .16s var(--ease-out);
+}
+details.card[open]>summary::after{transform:rotate(180deg)}
+details.card>summary:hover{color:var(--fg)}
+details.card>.hint{padding:0 15px 10px}
+details.card>.list{padding:0 15px 14px;margin-top:0}
+.dbg-body{
+  white-space:pre-wrap;word-break:break-all;font-size:11.5px;color:var(--dim-2);
+  font-family:"Cascadia Mono",Consolas,monospace;margin-top:4px;
+}
+.rule-item .grow{flex:1;min-width:0}
+.rule-item .tag{font-size:11px;color:var(--dim)}
+
+/* ── 长按确认按钮（hold.js）：金色液体从左往右填满 ──
+   只用于「破坏性但不紧急」的操作（删波形），开火/急停永不走这里 */
+.hold-btn{
+  position:relative;overflow:hidden;isolation:isolate;
+  --hb-p:0;
+  background-color:rgba(255,77,79,.07);
+  border:1px solid rgba(255,77,79,.28);color:var(--hot);
+  padding:7px 13px;border-radius:8px;font:inherit;font-size:13px;
+  cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation;
+  transition:border-color .14s ease, background-color .14s ease, transform .08s ease;
+}
+.hold-btn .hb-label{display:block;white-space:nowrap}
+.hold-btn .hb-label-out{position:relative;z-index:1}
+.hold-btn .hb-fill{
+  position:absolute;inset:0;z-index:2;display:grid;place-items:center;
+  background-color:var(--hot);
+  clip-path:inset(0 calc((1 - var(--hb-p)) * 100%) 0 0);
+}
+.hold-btn .hb-label-in{color:#fff;font-weight:650}
+.hold-btn .hb-hint{
+  position:absolute;left:0;right:0;bottom:1px;z-index:3;text-align:center;
+  font-size:10px;color:rgba(255,255,255,.7);opacity:0;pointer-events:none;
+  transition:opacity .15s ease;
+}
+.hold-btn[data-phase="holding"] .hb-hint{opacity:1}
+.hold-btn:hover{border-color:var(--hot)}
+.hold-btn[data-phase="holding"]{transform:scale(.99);border-color:var(--hot)}
+.hold-btn[data-phase="done"]{border-color:var(--hot);background-color:rgba(255,77,79,.16)}
+.hold-btn:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+.hold-btn.small{padding:7px 12px;font-size:12.5px}
+
+/* ── 自定义下拉（glideselect.js 移植）──
+   原生 <select> 被视觉隐藏（仍可编程取值、无障碍可读），UI 全用下面这套 */
+.gs-native{
+  position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;border:0;
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none;
+}
+.glide-select{position:relative;display:block;width:100%;min-width:0;flex:1}
+.gs-trigger{
+  display:flex;align-items:center;gap:8px;width:100%;height:38px;
+  padding:0 11px;border-radius:8px;cursor:pointer;text-align:left;
+  background-color:var(--card-in);color:var(--fg);border:1px solid var(--hair);
+  font:inherit;font-size:14px;
+  transition:border-color .14s ease, background-color .14s ease;
+}
+.gs-trigger:hover{border-color:var(--hair-hi)}
+.gs-trigger[aria-expanded="true"]{border-color:var(--gold);background-color:rgba(255,233,157,.04)}
+.gs-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gs-label[data-empty]{color:var(--dim)}
+.gs-trigger-tag{flex:0 0 auto;max-width:42%;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-size:11px;color:var(--dim)}
+.gs-chevron{display:inline-flex;flex:0 0 auto;color:rgba(255,233,157,.55);
+  transition:transform .2s var(--ease-out)}
+.gs-trigger[aria-expanded="true"] .gs-chevron{transform:rotate(180deg)}
+.gs-menu{
+  position:absolute;left:0;right:0;z-index:60;padding:4px;border-radius:10px;
+  background-color:#16140f;
+  border:1px solid var(--hair-hi);
+  box-shadow:var(--shadow);
+  opacity:0;transform:scale(.97);pointer-events:none;
+  transition:opacity .15s var(--ease-out), transform .15s var(--ease-out);
+}
+.gs-menu[data-side="bottom"]{top:calc(100% + 6px);transform-origin:top left}
+.gs-menu[data-side="top"]{bottom:calc(100% + 6px);transform-origin:bottom left}
+.gs-menu[data-state="open"]{opacity:1;transform:none;pointer-events:auto}
+.gs-list{position:relative;display:flex;flex-direction:column;gap:2px;max-height:260px;overflow:auto}
+.gs-pill{
+  position:absolute;left:0;right:0;top:0;height:32px;border-radius:6px;opacity:0;pointer-events:none;
+  background-color:rgba(255,233,157,.12);
+  transition:transform .2s var(--ease-out), opacity .12s ease;
+}
+.gs-option{
+  position:relative;z-index:1;display:flex;align-items:center;gap:8px;
+  height:32px;padding:0 9px;border-radius:6px;cursor:pointer;
+  font-size:13px;color:var(--fg);
+}
+.gs-option.is-disabled{color:var(--dim-2);cursor:not-allowed}
+.gs-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gs-tag{flex:0 0 auto;font-size:11px;color:var(--dim)}
+.gs-check{display:inline-flex;flex:0 0 auto;color:var(--gold);opacity:0;transition:opacity .14s ease}
+.gs-option[aria-selected="true"] .gs-check{opacity:1}
+.gs-empty{padding:10px;text-align:center;color:var(--dim);font-size:12px}
+.glide-select[data-swap] .gs-label{animation:gs-swap .18s ease}
+@keyframes gs-swap{from{opacity:.55;filter:blur(2px)}}
+
+/* ── 预热式气泡提示（warmtooltip.js 移植）──
+   data-tip="…" 即挂上；外层管定位、内层管 pop，互不干扰 */
+.wt{
+  position:fixed;top:0;left:0;z-index:400;pointer-events:none;
+  width:max-content;max-width:min(300px,86vw);will-change:transform;
+}
+.wt-box{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 10px;border-radius:9px;
+  background-color:var(--gold);color:#1a1508;
+  font-size:12.5px;font-weight:600;line-height:1.25;
+  box-shadow:0 10px 28px rgba(0,0,0,.55);
+  transform:scale(.94);opacity:0;filter:blur(3px);
+  transition:transform .16s var(--ease-out), opacity .16s ease, filter .16s ease;
+}
+.wt[data-state="open"] .wt-box{transform:none;opacity:1;filter:none}
+.wt[data-instant] .wt-box{transition:none}
+.wt-text{white-space:normal}
+.wt-kbd{
+  display:inline-flex;align-items:center;height:1.5em;padding:0 .45em;border-radius:.4em;
+  background:rgba(26,21,8,.14);box-shadow:inset 0 -1px 0 rgba(26,21,8,.18);
+  font-size:.86em;letter-spacing:.02em;
+}
+.wt-kbd[hidden]{display:none}
+.wt-arrow{
+  position:absolute;width:8px;height:8px;margin-left:-4px;border-radius:2px;
+  background:var(--gold);transform:rotate(45deg);
+}
+.wt[data-side="top"] .wt-arrow{bottom:-3px}
+.wt[data-side="bottom"] .wt-arrow{top:-3px}
+
+/* ══ 房间入口层 ══ */
+.room-layer{
+  position:fixed;inset:0;z-index:300;
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;
+  background:
+    radial-gradient(760px 460px at 50% 0%, rgba(255,233,157,.10), transparent 66%),
+    rgba(6,5,4,.86);
+  -webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);
+  overflow:auto;
+}
+.room-layer[hidden]{display:none}
+.room-card{
+  width:min(430px,100%);
+  background-color:#16140f;
+  border:1px solid var(--hair-hi);border-radius:16px;
+  padding:24px 22px 18px;
+  box-shadow:var(--shadow-hi);
+  animation:roomIn .26s var(--ease-out);
+}
+@keyframes roomIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.room-brand{display:flex;align-items:center;gap:11px;justify-content:center}
+.room-mark{
+  display:grid;place-items:center;width:40px;height:40px;
+  border-radius:11px;font:700 15px/1 "Cascadia Mono",Consolas,monospace;
+  color:#15120a;background-color:var(--gold);
+}
+.room-title{
+  font-size:26px;font-weight:700;letter-spacing:.5px;margin:0;
+  background:linear-gradient(92deg,var(--fg),var(--gold) 70%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.room-title b{font-weight:700}
+.room-tagline{text-align:center;color:var(--dim);font-size:12px;margin:12px 0 20px}
+.room-pane{display:flex;flex-direction:column;gap:10px}
+.room-pane[hidden]{display:none}
+.room-btn{
+  display:block;width:100%;text-align:left;
+  padding:13px 16px;border-radius:14px;
+  background:var(--panel2);border:1px solid var(--line);color:var(--fg);
+}
+.room-btn .t{display:block;font-size:15px;font-weight:700}
+.room-btn .d{display:block;font-size:12px;color:var(--dim);margin-top:2px}
+.room-btn:hover{border-color:var(--line-str);background:rgba(255,233,157,.06)}
+.room-btn.primary{background-color:rgba(255,233,157,.08);border-color:var(--hair-hi)}
+.room-btn.primary .t{color:var(--gold)}
+.room-btn.primary:hover{background-color:rgba(255,233,157,.14)}
+.room-btn.inline{flex:1;text-align:center}
+.room-link{
+  background:none;border:0;color:var(--dim);font-size:12px;
+  padding:9px;text-align:center;text-decoration:underline dotted;
+}
+.room-link:hover{color:var(--gold)}
+.room-actions{display:flex;gap:10px;align-items:center;margin-top:4px}
+.room-foot{color:var(--dim);font-size:11px;text-align:center;margin:18px 0 0;
+  border-top:1px solid var(--line);padding-top:12px}
+.code-row{display:flex;gap:10px;align-items:center}
+
+/* 房间码槽位（codeslots.js 移植）：逐位"落下"，填满后槽位点亮 */
+.code-slots{display:flex;gap:7px;align-items:center;flex:1;justify-content:center}
+.code-slots__slot{
+  position:relative;width:40px;height:50px;flex:0 0 auto;border-radius:11px;overflow:hidden;
+  display:grid;place-items:center;
+  background-color:rgba(8,7,6,.62);border:1px solid var(--hair);
+  transition:border-color .22s ease, box-shadow .22s ease;
+}
+.code-slots__slot:not(.filled)::after{
+  content:"";position:absolute;width:15px;height:2px;border-radius:2px;
+  background:rgba(255,233,157,.16);
+}
+.code-slots__fill{
+  position:absolute;inset:0;border-radius:inherit;
+  background-color:var(--gold);
+  transform:scale(0);transition:transform .4s cubic-bezier(.34,1.45,.6,1);
+}
+.code-slots__slot.filled .code-slots__fill{transform:scale(1)}
+.code-slots__slot.filled{border-color:var(--gold)}
+.code-slots__digit{
+  position:relative;z-index:1;font:700 20px/1 "Cascadia Mono",Consolas,monospace;
+  color:#1a1508;opacity:0;transform:translateY(9px);
+  transition:opacity .3s ease, transform .38s var(--ease-out);
+}
+.code-slots__slot.filled .code-slots__digit{opacity:1;transform:none}
+.code-slots[data-status="success"] .code-slots__slot{border-color:var(--gold)}
+.code-slots[data-status="error"] .code-slots__fill{background-color:var(--hot)}
+.code-slots[data-status="error"] .code-slots__slot{border-color:var(--hot)}
+
+/* 邀请二维码（qrcode.js 手写实现，SVG 矢量 → 任何尺寸都清晰） */
+.qr-wrap{display:flex;justify-content:center;margin:4px 0 2px}
+.qr-wrap[hidden]{display:none}
+.qr-wrap svg{
+  display:block;width:min(196px,52vw);height:auto;aspect-ratio:1/1;   /* aspect-ratio 兜底：某些浏览器对 svg height:auto 会塌陷 */
+  border-radius:10px;border:1px solid var(--hair-hi);
+}
+#roomCodeIn{letter-spacing:.18em;text-transform:uppercase;font-family:"Cascadia Mono",Consolas,monospace}
+
+/* chip 版按钮（顶栏「房间」） */
+button.chip-btn{cursor:pointer}
+button.chip-btn:hover{border-color:var(--line-str)}
+button.chip-btn:hover b{color:var(--gold-2)}
+
+/* 已在房间里：三行状态卡 */
+.room-current{
+  display:flex;flex-direction:column;gap:8px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;
+}
+.cur-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13px}
+.cur-k{color:var(--dim);font-size:12px}
+.cur-row b{color:var(--gold);font-family:"Cascadia Mono",Consolas,monospace;letter-spacing:.08em}
+#roomActiveState{font-size:12px}
+#roomActiveState.ok{color:var(--ok)}
+#roomActiveState.dim{color:var(--dim)}
+button.ghost.danger{color:var(--hot);border-color:rgba(255,77,79,.3)}
+button.ghost.danger:hover{color:#fff;background:rgba(255,77,79,.18);border-color:var(--hot)}
+
+/* 复制成功之类的一次性提示 */
+.room-toast{margin:12px 0 0;text-align:center;font-size:12px;color:var(--gold);
+  animation:toastIn .18s ease}
+.room-toast[hidden]{display:none}
+@keyframes toastIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+
+/* ══ 移动端底部操作条（桌面隐藏）══ */
+.mobile-bar{display:none}
+
+/* ══════════════ 响应式 ══════════════ */
+
+/* 中窄屏：单列 + 底部操作条接管急停 */
+@media (max-width:1040px){
+  body{padding-bottom:calc(var(--bar-h) + 22px + env(safe-area-inset-bottom,0px))}
+  .layout{grid-template-columns:1fr;padding:13px;gap:13px}
+  .stop-fixed{display:none}
+  .mobile-bar{
+    display:flex;gap:10px;align-items:center;
+    position:fixed;left:0;right:0;bottom:0;z-index:210;
+    padding:10px 13px calc(10px + env(safe-area-inset-bottom,0px));
+    background:rgba(10,9,8,.92);
+    -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+    border-top:1px solid var(--line);
+    box-shadow:0 -8px 26px rgba(0,0,0,.5);
+  }
+  .mobile-bar button{
+    flex:1;border:0;border-radius:13px;padding:15px 10px;
+    font-size:16px;font-weight:750;letter-spacing:1px;
+  }
+  .bar-fire{position:relative;overflow:hidden;background-color:var(--gold);color:#1a1508}
+  .bar-stop{background-color:var(--hot);color:#fff}
+  /* 触摸目标放大 */
+  select,input[type=text],input[type=number],textarea{min-height:42px;padding:10px 12px}
+  button.ghost{padding:9px 14px}
+  button.ghost.small{padding:7px 11px;font-size:12.5px}
+  input[type=checkbox]{width:19px;height:19px}
+  label.chk{margin-top:15px}
+  .list{max-height:none}
+  /* 触屏：下拉的触摸目标放大（行高变了，pill 由 JS 量出来，不会错位） */
+  .gs-trigger{height:44px;font-size:15px}
+  .gs-option{height:40px;font-size:14px}
+  .gs-tag{font-size:12px}
+}
+
+/* 手机：状态条单列、舞台更窄更好看 */
+@media (max-width:700px){
+  .topbar{gap:8px;padding:9px 12px}
+  .brand-name{font-size:15px}
+  .chip{font-size:11px;padding:3px 9px}
+  .statusbar{grid-template-columns:1fr}
+  .layout{padding:11px;gap:11px}
+  .card{padding:13px}
+  .stage-wrap{border-radius:10px}
+  .room-card{padding:22px 18px 16px;border-radius:17px}
+  .room-title{font-size:23px}
+  .code-slots{gap:6px}
+  .code-slots__slot{width:34px;height:44px;border-radius:9px}
+  .code-slots__digit{font-size:17px}
+}
+@media (max-width:400px){
+  .brand-mark{display:none}
+  #sourceChip{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+
+/* ── 规则编辑器：在骨骼画布上「画线 / 画框 / 放圆」── */
+#stage.editing{
+  cursor:crosshair;
+  box-shadow:inset 0 0 0 2px rgba(255,77,79,.55), 0 0 18px rgba(255,77,79,.22);
+}
+label.mini{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12px;color:var(--dim);margin:0;flex:1;white-space:nowrap;
+}
+label.mini input{width:72px;padding:4px 6px;font-size:12px}
+.rule-item .param{
+  color:var(--gold);font-family:"Cascadia Mono",Consolas,ui-monospace,monospace;font-size:11px;
+}
+.rule-item .param i{color:var(--dim);font-style:normal}
+
+/* ── 连接与配对卡片（郊狼 Relay / ESP32 / 摄像头 / 心率带）── */
+.link-row{
+  display:flex;align-items:center;gap:9px;
+  padding:6px 0;font-size:13px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+}
+.link-row:last-of-type{border-bottom:none}
+.link-row .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-row code{color:var(--dim);font-size:11px}
+.link-row .mono{font-family:"Cascadia Mono",Consolas,ui-monospace,monospace;font-size:11px;color:var(--dim)}
+/* 灯下面那一行：该链路的选项（下拉）与动作（按钮） */
+.link-sub{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:0 0 10px 18px;
+}
+.link-sub select{flex:1;min-width:150px;max-width:320px;font-size:12px;padding:4px 6px}
+.link-sub .mono{font-family:"Cascadia Mono",Consolas,ui-monospace,monospace;font-size:11px;color:var(--dim)}
+.link-sub + .link-row{border-top:1px solid rgba(255,255,255,.04)}
+/* 某条链路自己的提示（★ 别再共用一个提示位：四条链路每秒互相覆盖会"闪"） */
+.row-hint{
+  margin:-6px 0 8px 18px;padding-left:8px;
+  border-left:2px solid rgba(255,233,157,.35);
+  font-size:12px;line-height:1.5;
+}
+
+/* ── 顶部「控制端 / 被控端」视角切换 ── */
+.ui-tabs{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin:10px 0 0;padding:0 2px;
+}
+.ui-tabs .tab{
+  background:transparent;border:1px solid var(--hair);color:var(--dim);
+  border-radius:999px;padding:5px 14px;font-size:13px;cursor:pointer;
+  transition:color .15s ease,border-color .15s ease,background-color .15s ease,transform .15s ease;
+}
+.ui-tabs .tab:hover{color:var(--fg);border-color:var(--dim)}
+.ui-tabs .tab.active{
+  border-color:var(--gold);color:var(--gold);background:rgba(255,233,157,.08);
+}
+.ui-tabs .hint{font-size:12px}
+
+/* ── 对端 / 本端 切换过渡（用户要求：不加这个，两栏长得一样时根本不知道切没切）── */
+.layout.view-enter{animation:viewIn .22s ease-out both}
+@keyframes viewIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.layout.view-enter{animation:none}}
+
+/* ★ 整页切换：整个 .layout（**下面所有卡片一起**）横向滑入 —— 让人一眼看出"切过去了"。
+   用户原话：「我跟你说的切换是指整个页面、下面所有的卡片切换过去」。 */
+.layout.view-enter-left{animation:viewInLeft .26s cubic-bezier(.22,.61,.36,1) both}
+.layout.view-enter-right{animation:viewInRight .26s cubic-bezier(.22,.61,.36,1) both}
+@keyframes viewInLeft{from{opacity:.35;transform:translateX(-26px)}to{opacity:1;transform:none}}
+@keyframes viewInRight{from{opacity:.35;transform:translateX(26px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .layout.view-enter-left,.layout.view-enter-right{animation:none}
+}
+
+/* ★ 对端未连接时**不要隐藏整页内容**（实测踩过：一藏就把本机卡片全藏没了，
+   用户看到的是"原来的标签全被删了"）。控制页只在 tab 上禁用（点不进去），
+   页面结构保持完整；未连接提示卡由 JS 插在控制页顶部，而不是替换内容。 */
+.peer-gate{grid-column:1/-1}
+.peer-gate-card{
+  border:1px dashed var(--hair);border-radius:14px;padding:18px 20px;
+  background:rgba(255,233,157,.04);margin:0 0 12px;
+}
+.peer-gate-card h2{margin:0 0 8px;font-size:16px;color:var(--gold)}
+.peer-gate-card p{margin:0 0 8px;line-height:1.7;color:var(--fg);font-size:13px}
+.peer-gate-card ul{margin:6px 0 8px 18px;padding:0;line-height:1.8;color:var(--dim);font-size:12.5px}
+.peer-gate-card code{background:rgba(255,255,255,.06);padding:1px 6px;border-radius:5px}
+.ui-tabs .tab.dead{opacity:.55}
+.ui-tabs .tab.dead::after{content:" ⚠";font-size:11px}
+.ui-tabs .tab:disabled{cursor:not-allowed}
+
+/* ── 仪表盘（左：链路状态 / 右：本机 socket 郊狼）── */
+.dash-card{margin-top:10px}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:720px){.dash-grid{grid-template-columns:1fr}}
+.dash-pane{
+  border:1px solid var(--hair);border-radius:10px;padding:8px 10px;
+  background:rgba(255,255,255,.02);
+}
+.dash-title{font-size:12px;color:var(--gold);margin-bottom:6px;letter-spacing:.03em}
+.dash-title .dim{color:var(--dim);font-size:11px}
+.dash-pane .cur-row{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0}
+.dash-pane .cur-k{color:var(--dim);flex:0 0 auto}
+.dash-pane b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-hint[hidden]{display:none}
+.dot{
+  width:9px;height:9px;border-radius:50%;flex:none;
+  background:#4b5563;box-shadow:0 0 0 3px rgba(75,85,99,.18);
+  transition:background .25s,box-shadow .25s;
+}
+.dot.on{background:#3fb950;box-shadow:0 0 0 3px rgba(63,185,80,.20)}
+.dot.off{background:#f85149;box-shadow:0 0 0 3px rgba(248,81,73,.18)}
+.dot.wait{background:#d29922;box-shadow:0 0 0 3px rgba(210,153,34,.18)}
+/* 黄灯：在跑但结果不可用（例如摄像头是**虚拟摄像头** → 画面里没有人 → 不会有姿态数据） */
+.dot.warn{background:#e3b341;box-shadow:0 0 0 3px rgba(227,179,65,.22)}
+.dot.pulse{animation:dotPulse 1.2s ease-in-out infinite}
+@keyframes dotPulse{0%,100%{opacity:1}50%{opacity:.42}}
+@media (prefers-reduced-motion:reduce){.dot.pulse{animation:none}}
