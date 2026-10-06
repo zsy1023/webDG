@@ -59,6 +59,27 @@ function Warn ($m) { Write-Host "  ! $m" -ForegroundColor Yellow }
 function Bad  ($m) { Write-Host "  ✗ $m" -ForegroundColor Red }
 function Info ($m) { Write-Host "  · $m" -ForegroundColor DarkGray }
 
+function ConvertTo-NativeArgLine {
+    # ⚠️ `Start-Process -ArgumentList` 传**数组**时是「用空格把元素连起来」，**不会**给元素加引号。
+    #    所以参数里一带空格就会当场被拆开 —— 发行版装在 `D:\Program Files\zsy\webDG` 时实测：
+    #      python.exe: can't open file 'D:\Program': [Errno 2] No such file or directory
+    #      cli: error: unrecognized arguments: Files\zsy\webDG\agent\nodes.toml
+    #    （装在 `C:\Users\<你>\Desktop\webDG` 这种没空格的路径下一直没露馅。）
+    #    这里自己按 C 运行库的解析规则引号化：含空白/引号的元素加引号，内层引号转义成 \"，
+    #    引号前的那串反斜杠翻倍，行尾反斜杠也翻倍。
+    #    （不用 `-ArgumentList` 单个字符串的话没法兼顾"引号 + 反斜杠"这两种边界。）
+    param([string[]]$Arguments)
+    $parts = foreach ($a in $Arguments) {
+        $s = [string]$a
+        if ($s -eq "") { '""'; continue }
+        if ($s -notmatch '[\s"]') { $s; continue }
+        $escaped = [regex]::Replace($s, '(\\*)"', '$1$1\"')   # 引号前的反斜杠翻倍
+        $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')  # 行尾反斜杠翻倍
+        '"' + $escaped + '"'
+    }
+    return ($parts -join ' ')
+}
+
 function Invoke-Native {
     # ⚠️ 三个坑，一次说清：
     #   1. `$ErrorActionPreference = "Stop"`（本脚本开头设的）时，**native 命令往 stderr
@@ -719,8 +740,8 @@ if (-not $NoRelay -and $V4Url) {
         #    首次会弹一次"是否允许访问网络"→ 点允许；放行命令也打印在下面。
         #    跨机时对端按打印出来的地址连即可。
         Start-Process -FilePath $Python `
-            -ArgumentList @((Join-Path $Root "tools\relay.py"), "--host", "0.0.0.0",
-                            "--port", "$RelayPort", "--room", $relayRoom) `
+            -ArgumentList (ConvertTo-NativeArgLine @((Join-Path $Root "tools\relay.py"), "--host", "0.0.0.0",
+                                                     "--port", "$RelayPort", "--room", $relayRoom)) `
             -WorkingDirectory $Root -NoNewWindow | Out-Null
         # ★ 必须监听 0.0.0.0：手机 App 要**从局域网**连进来（扫的就是配对二维码）。
         #   以前这里写死 127.0.0.1（为了躲防火墙询问）→ 手机怎么都连不上
@@ -775,7 +796,7 @@ $nodesToml = Join-Path $Root "agent\nodes.toml"
 $runAllArgs = @("-m", "agent.core.cli", "run-all")
 if (Test-Path $nodesToml) { $runAllArgs += @("--config", $nodesToml) }
 $nodes = Start-Process -FilePath $Python `
-    -ArgumentList $runAllArgs `
+    -ArgumentList (ConvertTo-NativeArgLine $runAllArgs) `
     -WorkingDirectory $Root -NoNewWindow -PassThru
 
 # 6c. 等面板起来（冷启动要加载模型，给足 90s），再开浏览器
