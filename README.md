@@ -63,7 +63,7 @@
 
 | 东西 | 怎么配 |
 |---|---|
-| ESP32 假郊狼主机 | `agent\config.toml` → `[sim_coyote] port = "COM18"`（插上板子后在面板的设备下拉里选它的串口也行；**别选蓝牙虚拟串口**，那种口能打开却收不到字节） |**[esp32固件](https://github.com/zsy1023/dglab-Webdg-esp32)**
+| ESP32 假郊狼主机**[esp32固件](https://github.com/zsy1023/dglab-Webdg-esp32)** | `agent\config.toml` → `[sim_coyote] port = "COM18"`（插上板子后在面板的设备下拉里选它的串口也行；**别选蓝牙虚拟串口**，那种口能打开却收不到字节） |
 | V4 中继 | 默认 `start.cmd` 会在本机起一个（`ws://127.0.0.1:9997?room=…`）；对端 relay 在别的机器就把 `[coyote_v4] url` 改成那个地址 |
 | 郊狼真机 / 手机 App | 手机 App 扫控制端面板/中继打印的配对二维码接入 |
 
